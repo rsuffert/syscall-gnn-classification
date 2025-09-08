@@ -1,6 +1,7 @@
 import os
 import h5py
 import logging
+import argparse
 import subprocess
 from typing import Dict
 from preprocessing.graph_preprocess_dataset import preprocess_dataset
@@ -11,6 +12,13 @@ NORMAL_TEST_H5  = os.getenv("NORMAL_TEST_H5",  "Normal_DTDS-test.h5")
 ATTACK_TRAIN_H5 = os.getenv("ATTACK_TRAIN_H5", "Attach_DTDS-train.h5")
 ATTACK_VALID_H5 = os.getenv("ATTACK_VALID_H5", "Attach_DTDS-validation.h5")
 ATTACK_TEST_H5  = os.getenv("ATTACK_TEST_H5",  "Attach_DTDS-test.h5")
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="End-to-end processing and training script for syscall graph classification")
+    parser.add_argument("--extract", "-e", action="store_true", help="Run H5 to trace extraction")
+    parser.add_argument("--preprocess", "-p", action="store_true", help="Run trace to graph preprocessing")
+    parser.add_argument("--train", "-t", action="store_true", help="Run graph model training")
+    return parser.parse_args()
 
 def convert_h5_to_traces(h5_path: str, output_dir: str, syscall_tbl_path: str = "syscall_64.tbl"):
     def parse_syscall_tbl(path: str) -> Dict[int, str]:
@@ -74,14 +82,19 @@ if __name__ == "__main__":
         level=logging.DEBUG,
         format="%(asctime)s [%(levelname)s] %(message)s"
     )
-    logging.info("Converting H5 files to trace files...")
-    convert_h5_to_traces(NORMAL_TRAIN_H5, "traces/normal/train")
-    convert_h5_to_traces(NORMAL_VALID_H5, "traces/normal/validation")
-    convert_h5_to_traces(NORMAL_TEST_H5, "traces/normal/test")
-    convert_h5_to_traces(ATTACK_TRAIN_H5, "traces/attack/train")
-    convert_h5_to_traces(ATTACK_VALID_H5, "traces/attack/validation")
-    convert_h5_to_traces(ATTACK_TEST_H5, "traces/attack/test")
-    logging.info("Preprocessing traces to graphs...")
-    preprocess_traces_to_graphs()
-    logging.info("Training GNN model...")
-    train_gnn_model()
+
+    args = parse_args()
+    if args.extract:
+        logging.info("Converting H5 files to trace files...")
+        convert_h5_to_traces(NORMAL_TRAIN_H5, "traces/normal/train")
+        convert_h5_to_traces(NORMAL_VALID_H5, "traces/normal/validation")
+        convert_h5_to_traces(NORMAL_TEST_H5, "traces/normal/test")
+        convert_h5_to_traces(ATTACK_TRAIN_H5, "traces/attack/train")
+        convert_h5_to_traces(ATTACK_VALID_H5, "traces/attack/validation")
+        convert_h5_to_traces(ATTACK_TEST_H5, "traces/attack/test")
+    if args.preprocess:
+        logging.info("Preprocessing traces to graphs...")
+        preprocess_traces_to_graphs()
+    if args.train:
+        logging.info("Training GNN model...")
+        train_gnn_model()
