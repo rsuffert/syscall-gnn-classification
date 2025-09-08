@@ -51,14 +51,16 @@ def convert_h5_to_traces(h5_path: str, output_dir: str, syscall_tbl_path: str = 
     syscall_map = parse_syscall_tbl("syscall_64.tbl")
 
     os.makedirs(output_dir, exist_ok=True)
+    counter = len(os.listdir(output_dir))
     with h5py.File(h5_path, "r") as h5f:
         sequences = h5f["sequences"]
-        for idx, seq in enumerate(sequences):
+        for seq in sequences:
             syscall_names = [syscall_map.get(int(sid), f"unknown_{sid}") for sid in seq]
-            trace_path = os.path.join(output_dir, f"trace_{idx}.txt")
+            trace_path = os.path.join(output_dir, f"trace_{counter}.txt")
             with open(trace_path, "w") as f:
                 for name in syscall_names:
                     f.write(f"{name}(\n") # one per line with '(' to match expected format
+            counter += 1
 
 def preprocess_traces_to_graphs():
     dataset_folder = "traces"
@@ -86,12 +88,12 @@ if __name__ == "__main__":
     args = parse_args()
     if args.extract:
         logging.info("Converting H5 files to trace files...")
-        convert_h5_to_traces(NORMAL_TRAIN_H5, "traces/normal/train")
-        convert_h5_to_traces(NORMAL_VALID_H5, "traces/normal/validation")
-        convert_h5_to_traces(NORMAL_TEST_H5, "traces/normal/test")
-        convert_h5_to_traces(ATTACK_TRAIN_H5, "traces/attack/train")
-        convert_h5_to_traces(ATTACK_VALID_H5, "traces/attack/validation")
-        convert_h5_to_traces(ATTACK_TEST_H5, "traces/attack/test")
+        convert_h5_to_traces(NORMAL_TRAIN_H5, "traces/normal")
+        convert_h5_to_traces(NORMAL_VALID_H5, "traces/normal")
+        convert_h5_to_traces(NORMAL_TEST_H5,  "traces/normal")
+        convert_h5_to_traces(ATTACK_TRAIN_H5, "traces/attack")
+        convert_h5_to_traces(ATTACK_VALID_H5, "traces/attack")
+        convert_h5_to_traces(ATTACK_TEST_H5,  "traces/attack")
     if args.preprocess:
         logging.info("Preprocessing traces to graphs...")
         preprocess_traces_to_graphs()
