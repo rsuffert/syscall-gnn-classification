@@ -1,5 +1,6 @@
 import os
 import h5py
+import logging
 import subprocess
 from typing import Dict
 from preprocessing.graph_preprocess_dataset import preprocess_dataset
@@ -69,11 +70,15 @@ def train_gnn_model():
     ], check=True)
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    logging.info("Converting H5 files to trace files...")
     convert_h5_to_traces(NORMAL_TRAIN_H5, "traces/normal/train")
     convert_h5_to_traces(NORMAL_VALID_H5, "traces/normal/validation")
     convert_h5_to_traces(NORMAL_TEST_H5, "traces/normal/test")
     convert_h5_to_traces(ATTACK_TRAIN_H5, "traces/attack/train")
     convert_h5_to_traces(ATTACK_VALID_H5, "traces/attack/validation")
     convert_h5_to_traces(ATTACK_TEST_H5, "traces/attack/test")
+    logging.info("Preprocessing traces to graphs...")
     preprocess_traces_to_graphs()
+    logging.info("Training GNN model...")
     train_gnn_model()
