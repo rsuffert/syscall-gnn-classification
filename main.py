@@ -5,12 +5,12 @@ import subprocess
 from typing import Dict
 from preprocessing.graph_preprocess_dataset import preprocess_dataset
 
-NORMAL_TRAIN_H5 = "Normal_DTDS-train.h5"
-NORMAL_VALID_H5 = "Normal_DTDS-validation.h5"
-NORMAL_TEST_H5  = "Normal_DTDS-test.h5"
-ATTACK_TRAIN_H5 = "Attach_DTDS-train.h5"
-ATTACK_VALID_H5 = "Attach_DTDS-validation.h5"
-ATTACK_TEST_H5  = "Attach_DTDS-test.h5"
+NORMAL_TRAIN_H5 = os.getenv("NORMAL_TRAIN_H5", "Normal_DTDS-train.h5")
+NORMAL_VALID_H5 = os.getenv("NORMAL_VALID_H5", "Normal_DTDS-validation.h5")
+NORMAL_TEST_H5  = os.getenv("NORMAL_TEST_H5",  "Normal_DTDS-test.h5")
+ATTACK_TRAIN_H5 = os.getenv("ATTACK_TRAIN_H5", "Attach_DTDS-train.h5")
+ATTACK_VALID_H5 = os.getenv("ATTACK_VALID_H5", "Attach_DTDS-validation.h5")
+ATTACK_TEST_H5  = os.getenv("ATTACK_TEST_H5",  "Attach_DTDS-test.h5")
 
 def convert_h5_to_traces(h5_path: str, output_dir: str, syscall_tbl_path: str = "syscall_64.tbl"):
     def parse_syscall_tbl(path: str) -> Dict[int, str]:
@@ -70,7 +70,10 @@ def train_gnn_model():
     ], check=True)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(message)s"
+    )
     logging.info("Converting H5 files to trace files...")
     convert_h5_to_traces(NORMAL_TRAIN_H5, "traces/normal/train")
     convert_h5_to_traces(NORMAL_VALID_H5, "traces/normal/validation")
