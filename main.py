@@ -60,6 +60,7 @@ def convert_h5_to_traces(h5_path: str, output_dir: str, syscall_tbl_path: str = 
                 # used to build a graph
                 continue
             trace_path = os.path.join(output_dir, f"trace_{counter}.txt")
+            logging.debug(f"Writing {trace_path} with {len(syscall_names)} syscalls")
             with open(trace_path, "w") as f:
                 for name in syscall_names:
                     f.write(f"{name}(\n") # one per line with '(' to match expected format
