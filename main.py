@@ -56,6 +56,10 @@ def convert_h5_to_traces(h5_path: str, output_dir: str, syscall_tbl_path: str = 
         sequences = h5f["sequences"]
         for seq in sequences:
             syscall_names = [syscall_map.get(int(sid), f"unknown_{sid}") for sid in seq]
+            if len(syscall_names) < 2:
+                # skip sequences with one or zero syscalls as they cannot be
+                # used to build a graph
+                continue
             trace_path = os.path.join(output_dir, f"trace_{counter}.txt")
             with open(trace_path, "w") as f:
                 for name in syscall_names:
