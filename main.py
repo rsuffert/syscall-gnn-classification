@@ -8,10 +8,8 @@ from preprocessing.graph_preprocess_dataset import preprocess_dataset
 
 NORMAL_TRAIN_H5 = os.getenv("NORMAL_TRAIN_H5", "Normal_DTDS-train.h5")
 NORMAL_VALID_H5 = os.getenv("NORMAL_VALID_H5", "Normal_DTDS-validation.h5")
-NORMAL_TEST_H5  = os.getenv("NORMAL_TEST_H5",  "Normal_DTDS-test.h5")
 ATTACK_TRAIN_H5 = os.getenv("ATTACK_TRAIN_H5", "Attach_DTDS-train.h5")
 ATTACK_VALID_H5 = os.getenv("ATTACK_VALID_H5", "Attach_DTDS-validation.h5")
-ATTACK_TEST_H5  = os.getenv("ATTACK_TEST_H5",  "Attach_DTDS-test.h5")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="End-to-end processing and training script for syscall graph classification")
@@ -94,10 +92,8 @@ if __name__ == "__main__":
         logging.info("Converting H5 files to trace files...")
         convert_h5_to_traces(NORMAL_TRAIN_H5, "traces/normal")
         convert_h5_to_traces(NORMAL_VALID_H5, "traces/normal")
-        convert_h5_to_traces(NORMAL_TEST_H5,  "traces/normal")
         convert_h5_to_traces(ATTACK_TRAIN_H5, "traces/attack")
         convert_h5_to_traces(ATTACK_VALID_H5, "traces/attack")
-        convert_h5_to_traces(ATTACK_TEST_H5,  "traces/attack")
     if args.preprocess:
         logging.info("Preprocessing traces to graphs...")
         preprocess_traces_to_graphs()
