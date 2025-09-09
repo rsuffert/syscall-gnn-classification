@@ -2,6 +2,7 @@ import argparse
 
 import matplotlib.pyplot as plt
 import networkx as nx
+import numpy as np
 import torch
 import torch_geometric
 from torch_geometric.data import Data
@@ -67,10 +68,17 @@ class GraphEncoder:
             closeness_centrality = nx.closeness_centrality(G)
             pagerank = nx.pagerank(G, weight='weight')
 
-            if num_nodes > 2:
+            try:
                 katz_centrality = nx.katz_centrality_numpy(G, weight='weight')
-            else:
-                katz_centrality = {node: 0 for node in G}
+            except np.linalg.LinAlgError as e:
+                print(f"Numpy Katz centrality computation failed for graph with nodes: {G.nodes()} and edges: {G.edges()}. Exception: {e}")
+                print("Falling back to iterative Katz centrality computation...")
+                try:
+                    katz_centrality = nx.katz_centrality(G, weight='weight', max_iter=1000)
+                except Exception as e:
+                    print(f"Iterative Katz centrality computation also failed. Exception: {e}")
+                    print("Falling back to 0 for all nodes.")
+                    katz_centrality = {node: 0 for node in G}
 
             for syscall in unique_syscalls:
                 node_idx = node_mapping[syscall]
