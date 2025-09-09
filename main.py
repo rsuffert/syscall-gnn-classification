@@ -3,6 +3,7 @@ import h5py
 import logging
 import argparse
 import subprocess
+import multiprocessing
 from typing import Dict
 from preprocessing.graph_preprocess_dataset import preprocess_dataset
 
@@ -90,10 +91,18 @@ if __name__ == "__main__":
     args = parse_args()
     if args.extract:
         logging.info("Converting H5 files to trace files...")
-        convert_h5_to_traces(NORMAL_TRAIN_H5, "traces/normal")
-        convert_h5_to_traces(NORMAL_VALID_H5, "traces/normal")
-        convert_h5_to_traces(ATTACK_TRAIN_H5, "traces/attack")
-        convert_h5_to_traces(ATTACK_VALID_H5, "traces/attack")
+        def extract_normal():
+            convert_h5_to_traces(NORMAL_TRAIN_H5, "traces/normal")
+            convert_h5_to_traces(NORMAL_VALID_H5, "traces/normal")
+        def extract_attack():
+            convert_h5_to_traces(ATTACK_TRAIN_H5, "traces/attack")
+            convert_h5_to_traces(ATTACK_VALID_H5, "traces/attack")
+        normal_proc = multiprocessing.Process(target=extract_normal)
+        attack_proc = multiprocessing.Process(target=extract_attack)
+        normal_proc.start()
+        attack_proc.start()
+        normal_proc.join()
+        attack_proc.join()
     if args.preprocess:
         logging.info("Preprocessing traces to graphs...")
         preprocess_traces_to_graphs()
