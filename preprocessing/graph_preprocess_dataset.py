@@ -26,10 +26,10 @@ def process_subfolder(reader, encoder, subfolder_path, filter_calls, plot_graphs
     return subfolder_graph_data
 
 
-def preprocess_dataset(dataset_folder, filter_calls, plot_graphs, output_filename):
+def preprocess_dataset(dataset_folder, filter_calls, plot_graphs, output_filename, vocab=None):
     all_graph_data = []
     reader = SyscallFileReader(filter_calls)
-    encoder = GraphEncoder()
+    encoder = GraphEncoder(vocab)
 
     # Check if processing ADFA-LD dataset
     if "ADFA" in dataset_folder:
@@ -60,7 +60,8 @@ def preprocess_dataset(dataset_folder, filter_calls, plot_graphs, output_filenam
         # Create a dictionary to hold both the graph data and additional information
         data_to_save = {
             'graph_data': all_graph_data,
-            'vocab_size': len(encoder.syscall_vocab)
+            'vocab_size': len(encoder.syscall_vocab),
+            'vocab': encoder.syscall_vocab
         }
         pickle.dump(data_to_save, f)
 

@@ -29,9 +29,15 @@ def get_syscall_type_encoding(syscall):
 
 
 class GraphEncoder:
-    def __init__(self):
-        # Initialize an empty dictionary for the vocabulary
-        self.syscall_vocab = {}
+    UNKNOWN_KEY = "<UNK>"
+
+    def __init__(self, syscall_vocab=None):
+        self.syscall_vocab = syscall_vocab
+        if not syscall_vocab:
+            self.syscall_vocab = {}
+        self.user_provided_vocab = len(self.syscall_vocab) != 0
+        if self.UNKNOWN_KEY not in self.syscall_vocab:
+            self.syscall_vocab[self.UNKNOWN_KEY] = len(self.syscall_vocab)
 
     def build_vocabulary(self, syscalls):
         # Build vocabulary from the list of syscalls
@@ -41,8 +47,9 @@ class GraphEncoder:
                 self.syscall_vocab[syscall] = len(self.syscall_vocab)
 
     def encode(self, syscalls):
-        # Ensure the vocabulary is built
-        self.build_vocabulary(syscalls)
+        if not self.user_provided_vocab:
+            # Ensure the vocabulary is built
+            self.build_vocabulary(syscalls)
 
         unique_syscalls = list(set(syscalls))
         num_nodes = len(unique_syscalls)
@@ -82,7 +89,7 @@ class GraphEncoder:
 
             for syscall in unique_syscalls:
                 node_idx = node_mapping[syscall]
-                token = self.syscall_vocab[syscall]
+                token = self.syscall_vocab.get(syscall, self.syscall_vocab[self.UNKNOWN_KEY])
                 katz = katz_centrality[node_idx]
                 betweenness = betweenness_centrality[node_idx]
                 closeness = closeness_centrality[node_idx]
@@ -95,7 +102,7 @@ class GraphEncoder:
         else:
             # Handle singleton graph, assign default centrality measures
             for syscall in unique_syscalls:
-                token = self.syscall_vocab[syscall]
+                token = self.syscall_vocab.get(syscall, self.syscall_vocab[self.UNKNOWN_KEY])
                 syscall_type_encoding = get_syscall_type_encoding(syscall)
                 features = [token] + syscall_type_encoding + [0, 0, 0, 0]
                 node_features.append(features)

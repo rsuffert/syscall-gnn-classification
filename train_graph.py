@@ -42,7 +42,7 @@ def parse_arguments():
 
 
 def load_data(dataset_path):
-    graph_data, vocab_size = load_dataset(dataset_path)
+    graph_data, vocab_size, _ = load_dataset(dataset_path)
 
     graphs = [data['graph'] for data in graph_data]
     labels = [data['label'] for data in graph_data]

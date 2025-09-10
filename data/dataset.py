@@ -60,6 +60,7 @@ def load_dataset(file_path):
     # Unpack the loaded data
     graph_data = loaded_data['graph_data']
     vocab_size = loaded_data['vocab_size']
+    vocab      = loaded_data['vocab']
 
     # Process and return the unpacked data as needed
-    return graph_data, vocab_size
+    return graph_data, vocab_size, vocab
