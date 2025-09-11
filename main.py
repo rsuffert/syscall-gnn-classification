@@ -6,6 +6,7 @@ import argparse
 import subprocess
 import multiprocessing
 from typing import Dict
+from data.dataset import load_dataset
 from preprocessing.graph_preprocess_dataset import preprocess_dataset
 
 NORMAL_TRAIN_H5 = os.getenv("NORMAL_TRAIN_H5", "Normal_DTDS-train.h5")
@@ -83,8 +84,7 @@ def preprocess_traces_to_graphs_train():
 def preprocess_traces_to_graphs_infer():
     assert os.path.exists(f"{TRAIN_TRACES_DIR}/{PKL_TRACES_FILENAME}"), \
         "Training dataset not found, please run preprocessing for training first."
-    with open(f"{TRAIN_TRACES_DIR}/{PKL_TRACES_FILENAME}", 'rb') as f:
-        train_data = pickle.load(f)
+    train_data, _, _ = load_dataset(f"{TRAIN_TRACES_DIR}/{PKL_TRACES_FILENAME}")
     output_filepath = preprocess_dataset(
         INFER_TRACES_DIR, False, False, PKL_TRACES_FILENAME, vocab=train_data["vocab"]
     )

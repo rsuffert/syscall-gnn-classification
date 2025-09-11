@@ -1,5 +1,5 @@
 import torch
-from main import TRAIN_TRACES_DIR, INFER_TRACES_DIR, PKL_TRACES_FILENAME
+from main import INFER_TRACES_DIR, PKL_TRACES_FILENAME
 from torch_geometric.data import DataLoader
 from data.dataset import load_dataset, CustomGraphDataset
 from models.models import GNNModel
@@ -9,19 +9,18 @@ TRAINED_MODEL_FILEPATH = "experiments/GIN/best_model_checkpoint.pt"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-_, train_vocab_size, _ = load_dataset(f"{TRAIN_TRACES_DIR}/{PKL_TRACES_FILENAME}")
-test_graph_data, _, _  = load_dataset(f"{INFER_TRACES_DIR}/{PKL_TRACES_FILENAME}")
+graph_data, vocab_size, _  = load_dataset(f"{INFER_TRACES_DIR}/{PKL_TRACES_FILENAME}")
 
-labels = [data["label"] for data in test_graph_data]
+labels = [data["label"] for data in graph_data]
 label_encoder = LabelEncoder()
 label_encoder.classes_ = ["malware", "normal"]
 
-graphs = [data["graph"] for data in test_graph_data]
+graphs = [data["graph"] for data in graph_data]
 dataset = CustomGraphDataset(graphs, len(label_encoder.classes_), training=False)
 loader = DataLoader(dataset, batch_size=64, shuffle=False)
 
 model = GNNModel(
-    vocab_size=train_vocab_size,
+    vocab_size=vocab_size,
     embedding_dim=128,
     in_channels=dataset[0].num_node_features,
     hidden_channels=512,

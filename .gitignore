@@ -158,4 +158,5 @@ cython_debug/
 !/experiments/plots
 !/experiments/plot.py
 
-
+# preprocessed syscall trace files
+traces*/
