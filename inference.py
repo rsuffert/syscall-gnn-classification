@@ -12,7 +12,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 graph_data, vocab_size, _  = load_dataset(f"{INFER_TRACES_DIR}/{PKL_TRACES_FILENAME}")
 
-labels = [data["label"] for data in graph_data]
+labels = ["malware" if data["label"] == "attack" else data["label"] for data in graph_data]
 label_encoder = LabelEncoder()
 label_encoder.classes_ = np.array(["malware", "normal"])
 
