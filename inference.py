@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from main import INFER_TRACES_DIR, PKL_TRACES_FILENAME
 from torch_geometric.data import DataLoader
 from data.dataset import load_dataset, CustomGraphDataset
@@ -13,7 +14,7 @@ graph_data, vocab_size, _  = load_dataset(f"{INFER_TRACES_DIR}/{PKL_TRACES_FILEN
 
 labels = [data["label"] for data in graph_data]
 label_encoder = LabelEncoder()
-label_encoder.classes_ = ["malware", "normal"]
+label_encoder.classes_ = np.array(["malware", "normal"])
 
 graphs = [data["graph"] for data in graph_data]
 dataset = CustomGraphDataset(graphs, len(label_encoder.classes_), training=False)
