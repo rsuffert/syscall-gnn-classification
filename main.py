@@ -84,9 +84,9 @@ def preprocess_traces_to_graphs_train():
 def preprocess_traces_to_graphs_infer():
     assert os.path.exists(f"{TRAIN_TRACES_DIR}/{PKL_TRACES_FILENAME}"), \
         "Training dataset not found, please run preprocessing for training first."
-    train_data, _, _ = load_dataset(f"{TRAIN_TRACES_DIR}/{PKL_TRACES_FILENAME}")
+    _, _, vocab = load_dataset(f"{TRAIN_TRACES_DIR}/{PKL_TRACES_FILENAME}")
     output_filepath = preprocess_dataset(
-        INFER_TRACES_DIR, False, False, PKL_TRACES_FILENAME, vocab=train_data["vocab"]
+        INFER_TRACES_DIR, False, False, PKL_TRACES_FILENAME, vocab=vocab
     )
     print(f"Graphs saved to {output_filepath}")
 
