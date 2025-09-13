@@ -5,6 +5,7 @@ from torch_geometric.data import DataLoader
 from data.dataset import load_dataset, CustomGraphDataset
 from models.models import GNNModel
 from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import classification_report, confusion_matrix
 
 TRAINED_MODEL_FILEPATH = "experiments/GIN/best_model_checkpoint.pt"
 
@@ -33,7 +34,7 @@ model = GNNModel(
     heads=8,
     norm="batch"
 )
-checkpoint = torch.load(TRAINED_MODEL_FILEPATH, map_location=device)
+checkpoint = torch.load(TRAINED_MODEL_FILEPATH, map_location=device, weights_only=False)
 model.load_state_dict(checkpoint["model_state_dict"])
 model.eval()
 model.to(device)
@@ -47,11 +48,21 @@ with torch.no_grad():
         all_preds.extend(preds.cpu().numpy())
 
 decoded_preds = label_encoder.inverse_transform(all_preds)
-total = 0
-correct = 0
-for i, pred in enumerate(decoded_preds):
-    print(f"Trace {i}: Predicted class: {pred} | True class: {labels[i]}")
-    total += 1
-    if pred == labels[i]:
-        correct += 1
-print(f"Accuracy: {correct / total:.4f}")
+
+# Calculate overall accuracy
+total = len(labels)
+correct = sum(1 for pred, true in zip(decoded_preds, labels) if pred == true)
+overall_accuracy = correct / total
+
+print("\n--- Results Summary ---")
+print(f"Overall Accuracy: {overall_accuracy:.4f} ({correct}/{total})")
+
+print("\n--- Per-Class Metrics ---")
+print(classification_report(labels, decoded_preds, target_names=label_encoder.classes_, digits=4))
+
+print("\n--- Confusion Matrix ---")
+cm = confusion_matrix(labels, decoded_preds, labels=label_encoder.classes_)
+print("Confusion Matrix:")
+print(f"Predicted:  {' '.join(f'{cls:>10}' for cls in label_encoder.classes_)}")
+for i, cls in enumerate(label_encoder.classes_):
+    print(f"True {cls:>7}: {' '.join(f'{cm[i][j]:>10}' for j in range(len(label_encoder.classes_)))}")
