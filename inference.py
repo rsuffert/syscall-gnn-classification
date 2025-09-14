@@ -8,6 +8,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, confusion_matrix
 
 TRAINED_MODEL_FILEPATH = "experiments/GIN/best_model_checkpoint.pt"
+MALWARE_THRESHOLD = 0.9
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -39,23 +40,18 @@ model.load_state_dict(checkpoint["model_state_dict"])
 model.eval()
 model.to(device)
 
-all_preds = []
+all_probs = []
 with torch.no_grad():
     for data in loader:
         data = data.to(device)
         out = model(data.x, data.edge_index, data.batch)
-        preds = out.argmax(dim=1)
-        all_preds.extend(preds.cpu().numpy())
+        probs = torch.softmax(out, dim=1)
+        all_probs.extend(probs.cpu().numpy())
+all_probs_np = np.array(all_probs)
 
-decoded_preds = label_encoder.inverse_transform(all_preds)
-
-# Calculate overall accuracy
-total = len(labels)
-correct = sum(1 for pred, true in zip(decoded_preds, labels) if pred == true)
-overall_accuracy = correct / total
-
-print("\n--- Results Summary ---")
-print(f"Overall Accuracy: {overall_accuracy:.4f} ({correct}/{total})")
+# Predict normal (class 1) if malware probability <= threshold, else malware (class 0)
+threshold_preds = (all_probs_np[:, 0] <= MALWARE_THRESHOLD).astype(int)
+decoded_preds = label_encoder.inverse_transform(threshold_preds)
 
 print("\n--- Per-Class Metrics ---")
 print(classification_report(labels, decoded_preds, target_names=label_encoder.classes_, digits=4))
