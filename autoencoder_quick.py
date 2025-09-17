@@ -1,0 +1,177 @@
+import argparse
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.loader import DataLoader
+from sklearn.metrics import roc_auc_score, confusion_matrix
+import numpy as np
+
+from data import load_dataset, CustomGraphDataset
+from models import GNNModel
+from utils import set_random_seeds
+
+class GNNAutoencoder(nn.Module):
+    def __init__(self, vocab_size, embedding_dim, in_channels, hidden_channels, num_layers, dropout, model_type="GIN"):
+        super(GNNAutoencoder, self).__init__()
+
+        self.encoder = GNNModel(
+            vocab_size=vocab_size,
+            embedding_dim=embedding_dim,
+            in_channels=in_channels,
+            hidden_channels=hidden_channels,
+            num_layers=num_layers,
+            out_channels=hidden_channels,
+            dropout=dropout,
+            act="relu",
+            model_type=model_type
+        )
+
+        self.decoder = nn.Sequential(
+            nn.Linear(hidden_channels, hidden_channels // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_channels // 2, in_channels)
+        )
+    
+    def forward(self, x, edge_index, batch):
+        # Encode graph-level embeddings
+        graph_embeddings = self.encoder(x, edge_index, batch)
+        node_embeddings = graph_embeddings[batch]
+        reconstructed = self.decoder(node_embeddings)
+        return reconstructed, graph_embeddings
+
+def train_epoch(model, train_loader, optimizer, device):
+    model.train()
+    total_loss = 0
+
+    for batch in train_loader:
+        batch = batch.to(device)
+        optimizer.zero_grad()
+
+        # forward pass
+        reconstructed, _ = model(batch.x, batch.edge_index, batch.batch)
+
+        # loss computation
+        loss = F.mse_loss(reconstructed, batch.x)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item()
+    
+    return total_loss / len(train_loader)
+
+def validate_epoch(model, val_loader, device):
+    model.eval()
+    total_loss = 0
+
+    with torch.no_grad():
+        for batch in val_loader:
+            batch = batch.to(device)
+            reconstructed, _ = model(batch.x, batch.edge_index, batch.batch)
+            loss = F.mse_loss(reconstructed, batch.x)
+            total_loss += loss.item()
+    
+    return total_loss / len(val_loader)
+
+def calibrate_threshold(model, val_loader, device, target_fpr=0.05):
+    model.eval()
+    reconstruction_errors = []
+
+    with torch.no_grad():
+        for batch in val_loader:
+            batch = batch.to(device)
+            reconstructed, _ = model(batch.x, batch.edge_index, batch.batch)
+            errors = F.mse_loss(reconstructed, batch.x, reduction="none").mean(dim=1)
+            reconstruction_errors.extend(errors.cpu().numpy())
+        
+    threshold = np.percentile(reconstruction_errors, (1 - target_fpr) * 100)
+    print(f"Calibrated threshold at FPR {target_fpr}: {threshold}")
+    return threshold
+
+def evaluate_on_test(model, test_loader, threshold, device):
+    model.eval()
+    reconstruction_errors = []
+    labels = []
+
+    with torch.no_grad():
+        for batch in test_loader:
+            batch = batch.to(device)
+            reconstructed, _ = model(batch.x, batch.edge_index, batch.batch)
+            errors = F.mse_loss(reconstructed, batch.x, reduction="none").mean(dim=1)
+            reconstruction_errors.extend(errors.cpu().numpy())
+            labels.extend(batch.y.cpu().numpy())
+    
+    # predictions: error > threshold = anomaly
+    predictions = (np.array(reconstruction_errors) > threshold).astype(int)
+
+    auc = roc_auc_score(labels, reconstruction_errors)
+    print(f"AUC: {auc:.4f}")
+    print("Confusion Matrix:")
+    print(confusion_matrix(labels, predictions))
+
+def parse_arguments():
+    """Parses command-line arguments."""
+    parser = argparse.ArgumentParser(description="Train a GNN Autoencoder for anomaly detection")
+    
+    # Dataset paths
+    parser.add_argument("--train_dataset", type=str, required=True, help="Path to the training dataset (e.g., DongTing)")
+    parser.add_argument("--test_dataset", type=str, required=True, help="Path to the test dataset (e.g., ADFA)")
+    
+    # Model parameters
+    parser.add_argument("--embedding_dim", type=int, default=128, help="Embedding dimension")
+    parser.add_argument("--hidden_channels", type=int, default=256, help="Number of hidden channels")
+    parser.add_argument("--num_layers", type=int, default=3, help="Number of GNN layers")
+    parser.add_argument("--dropout", type=float, default=0.5, help="Dropout rate")
+    parser.add_argument("--model_type", type=str, default="GIN", choices=["GIN", "GCN", "SAGE"], help="Type of GNN model")
+    
+    # Training parameters
+    parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
+    parser.add_argument("--learning_rate", type=float, default=0.001, help="Learning rate")
+    parser.add_argument("--target_fpr", type=float, default=0.05, help="Target false positive rate for threshold calibration")
+    
+    return parser.parse_args()
+
+def main():
+    args = parse_arguments()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    set_random_seeds()
+
+    print("Loading datasets...")
+    train_data, vocab_size, _ = load_dataset(args.train_dataset)
+    test_data, _, _ = load_dataset(args.test_dataset)
+
+    train_graphs = [d['graph'] for d in train_data]
+    train_size = int(0.8 * len(train_graphs))
+    train_dataset = CustomGraphDataset(train_graphs[:train_size], classes=2, training=True)
+    val_dataset = CustomGraphDataset(train_graphs[train_size:], classes=2, training=False)
+    test_dataset = CustomGraphDataset([d['graph'] for d in test_data], classes=2, training=False)
+
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+
+    print("Initializing model...")
+    model = GNNAutoencoder(
+        vocab_size=vocab_size,
+        embedding_dim=args.embedding_dim,
+        in_channels=train_dataset[0].num_node_features,
+        hidden_channels=args.hidden_channels,
+        num_layers=args.num_layers,
+        dropout=args.dropout,
+        model_type=args.model_type
+    ).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+
+    print("Starting training...")
+    for epoch in range(1, args.epochs + 1):
+        train_loss = train_epoch(model, train_loader, optimizer, device)
+        val_loss = validate_epoch(model, val_loader, device)
+        print(f"Epoch {epoch:03d} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
+    
+    print("Calibrating threshold...")
+    threshold = calibrate_threshold(model, val_loader, device, target_fpr=args.target_fpr)
+
+    print("Evaluating on test dataset...")
+    evaluate_on_test(model, test_loader, threshold, device)
+
+if __name__ == "__main__":
+    main()
