@@ -73,36 +73,47 @@ def validate_epoch(model, val_loader, device):
 
 def calibrate_threshold(model, val_loader, device, target_fpr=0.05):
     model.eval()
-    reconstruction_errors = []
+    graph_reconstruction_errors = []
 
     with torch.no_grad():
         for batch in val_loader:
             batch = batch.to(device)
             reconstructed, _ = model(batch.x, batch.edge_index, batch.batch)
-            errors = F.mse_loss(reconstructed, batch.x, reduction="none").mean(dim=1)
-            reconstruction_errors.extend(errors.cpu().numpy())
+            node_errors = F.mse_loss(reconstructed, batch.x, reduction="none").mean(dim=1)
+            
+            # Aggregate node errors to graph level (same as in evaluate_on_test)
+            unique_graphs = torch.unique(batch.batch)
+            for graph_id in unique_graphs:
+                graph_mask = (batch.batch == graph_id)
+                graph_error = node_errors[graph_mask].mean().item()
+                graph_reconstruction_errors.append(graph_error)
         
-    threshold = np.percentile(reconstruction_errors, (1 - target_fpr) * 100)
+    threshold = np.percentile(graph_reconstruction_errors, (1 - target_fpr) * 100)
     print(f"Calibrated threshold at FPR {target_fpr}: {threshold}")
     return threshold
 
 def evaluate_on_test(model, test_loader, threshold, device):
     model.eval()
-    reconstruction_errors = []
+    graph_reconstruction_errors = []
     labels = []
 
     with torch.no_grad():
         for batch in test_loader:
             batch = batch.to(device)
             reconstructed, _ = model(batch.x, batch.edge_index, batch.batch)
-            errors = F.mse_loss(reconstructed, batch.x, reduction="none").mean(dim=1)
-            reconstruction_errors.extend(errors.cpu().numpy())
-            labels.extend(batch.y.cpu().numpy())
+            node_errors = F.mse_loss(reconstructed, batch.x, reduction="none").mean(dim=1)
+            unique_graphs = torch.unique(batch.batch)
+            for i, graph_id in enumerate(unique_graphs):
+                graph_mask = (batch.batch == graph_id)
+                graph_error = node_errors[graph_mask].mean().item()
+                graph_reconstruction_errors.append(graph_error)
+                graph_label = batch.y[i].item()
+                labels.append(graph_label)
     
     # predictions: error > threshold = anomaly
-    predictions = (np.array(reconstruction_errors) > threshold).astype(int)
+    predictions = (np.array(graph_reconstruction_errors) > threshold).astype(int)
 
-    auc = roc_auc_score(labels, reconstruction_errors)
+    auc = roc_auc_score(labels, graph_reconstruction_errors)
     print(f"AUC: {auc:.4f}")
     print("Confusion Matrix:")
     print(confusion_matrix(labels, predictions))
@@ -139,11 +150,18 @@ def main():
     train_data, vocab_size, _ = load_dataset(args.train_dataset)
     test_data, _, _ = load_dataset(args.test_dataset)
 
-    train_graphs = [d['graph'] for d in train_data]
+    train_graphs = [d['graph'] for d in train_data if d["label"] == "normal"]
     train_size = int(0.8 * len(train_graphs))
+    
     train_dataset = CustomGraphDataset(train_graphs[:train_size], classes=2, training=True)
     val_dataset = CustomGraphDataset(train_graphs[train_size:], classes=2, training=False)
-    test_dataset = CustomGraphDataset([d['graph'] for d in test_data], classes=2, training=False)
+    test_graphs = []
+    for d in test_data:
+        graph = d["graph"]
+        label = 0 if d["label"] == "normal" else 1
+        graph.y = torch.tensor([label], dtype=torch.long)
+        test_graphs.append(graph)
+    test_dataset = CustomGraphDataset(test_graphs, classes=2, training=False)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
