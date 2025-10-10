@@ -1,5 +1,5 @@
 import argparse
-
+import os
 import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
@@ -137,7 +137,11 @@ def main():
         # Update the metrics tracker with the results from this epoch
         experiment_tracker.update_and_save(epoch, loss, train_preds, train_labels, test_preds, test_labels, current_lr)
         print(experiment_tracker)
-
+    
+    model.eval()
+    save_model_path = os.path.join(experiment_tracker.run_dir, "gnn.pt")
+    torch.jit.script(model).save(save_model_path)
+    print(f"TorchScript model saved to {save_model_path}")
 
 if __name__ == "__main__":
     main()
