@@ -87,11 +87,15 @@ class GNNModel(torch.nn.Module):
         """
         if sequence.dim() != 1:
             raise ValueError("Input sequence must be a 1D tensor of syscall IDs.")
-        
+        device = next(self.parameters()).device
         with torch.no_grad():
             graph, _ = self.encoder.encode(sequence.tolist())
-            batch = torch.zeros(graph.num_nodes, dtype=torch.long)
-            logits = self.forward(graph.x, graph.edge_index, batch)
+            batch = torch.zeros(graph.num_nodes, dtype=torch.long).to(device)
+            logits = self.forward(
+                graph.x.to(device),
+                graph.edge_index.to(device),
+                batch
+            )
             probs = torch.softmax(logits, dim=1)
             malware_prob = probs[0, 0].item() # malware = 0, normal = 1
             return malware_prob > self.malware_threshold_prob
