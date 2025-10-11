@@ -142,7 +142,7 @@ def main():
     
     model.eval()
     save_model_path = os.path.join(experiment_tracker.run_dir, "gnn.pt")
-    torch.jit.script(model).save(save_model_path)
+    torch.save(model, save_model_path)
     print(f"TorchScript model saved to {save_model_path}")
 
 if __name__ == "__main__":
