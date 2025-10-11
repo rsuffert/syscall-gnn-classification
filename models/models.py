@@ -89,7 +89,7 @@ class GNNModel(torch.nn.Module):
             raise ValueError("Input sequence must be a 1D tensor of syscall IDs.")
         
         with torch.no_grad():
-            graph = self.encoder.encode(sequence)
+            graph = self.encoder.encode(sequence.tolist())
             batch = torch.zeros(graph.num_nodes, dtype=torch.long)
             logits = self.forward(graph.x, graph.edge_index, batch)
             probs = torch.softmax(logits, dim=1)
