@@ -37,6 +37,8 @@ def parse_arguments():
     parser.add_argument("--momentum", type=float, default=0.9, help="Momentum for SGD optimizer")
     parser.add_argument("--weight_decay", type=float, default=1e-6, help="Weight decay for optimizer")
 
+    parser.add_argument("--save_model_path", type=str, default="gnn.pt", help="File path where the trained model should be saved to")
+
     args = parser.parse_args()
     args.experiment_name = args.model
     return args
@@ -141,9 +143,8 @@ def main():
         print(experiment_tracker)
     
     model.eval()
-    save_model_path = os.path.join("..", "gnn.pt")
-    torch.save(model, save_model_path)
-    print(f"Model saved to {save_model_path}")
+    torch.save(model, args.save_model_path)
+    print(f"Model saved to {args.save_model_path}")
 
 if __name__ == "__main__":
     main()
