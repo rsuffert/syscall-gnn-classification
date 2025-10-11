@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.graphgym import init_weights
 from torch_geometric.nn import global_mean_pool, MLP, GCN, GraphSAGE, GIN, GAT
-
+from preprocessing.graph_encoder import GraphEncoder
 
 def count_parameters_in_millions(model):
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -11,9 +11,12 @@ def count_parameters_in_millions(model):
 
 class GNNModel(torch.nn.Module):
     def __init__(self, vocab_size, embedding_dim, in_channels, hidden_channels, num_layers, out_channels, dropout, act, model_type='GNN', heads=1, norm=None,
-                 use_embedding=True):
+                 use_embedding=True, vocab=None, malware_threshold_prob=0.5):
         super(GNNModel, self).__init__()
         self.use_embedding = use_embedding
+        self.vocab = vocab
+        self.encoder = GraphEncoder(vocab)
+        self.malware_threshold_prob = malware_threshold_prob
 
         if use_embedding:
             # Embedding layer for syscall tokens
@@ -69,3 +72,30 @@ class GNNModel(torch.nn.Module):
         x = self.fc(x)
 
         return x
+    
+    def predict(self, sequence: torch.Tensor) -> bool:
+        """
+        Classifies the given syscall sequence, represented as a PyTorch tensor.
+        Make sure to set the model to eval mode before calling this.
+
+        Args:
+            sequence (torch.Tensor): The unidimensional sequence of syscall IDs for the model to classify.
+                                     The IDs are already mapped to the values expected by the model.
+        
+        Returns:
+            bool: True if the sequence is malicious; False otherwise.
+        """
+        if sequence.dim() != 1:
+            raise ValueError("Input sequence must be a 1D tensor of syscall IDs.")
+        device = next(self.parameters()).device
+        with torch.no_grad():
+            graph, _ = self.encoder.encode(sequence.tolist())
+            batch = torch.zeros(graph.num_nodes, dtype=torch.long).to(device)
+            logits = self.forward(
+                graph.x.to(device),
+                graph.edge_index.to(device),
+                batch
+            )
+            probs = torch.softmax(logits, dim=1)
+            malware_prob = probs[0, 0].item() # malware = 0, normal = 1
+            return malware_prob > self.malware_threshold_prob

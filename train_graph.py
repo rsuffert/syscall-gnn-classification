@@ -1,5 +1,5 @@
 import argparse
-
+import os
 import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
@@ -11,6 +11,7 @@ from data import CustomGraphDataset, load_dataset
 from models import GNNModel
 from utils import ExperimentTracker, set_random_seeds
 
+MALWARE_THRESHOLD_PROB = 0.5
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Train a GNN model on a graph dataset")
@@ -36,13 +37,15 @@ def parse_arguments():
     parser.add_argument("--momentum", type=float, default=0.9, help="Momentum for SGD optimizer")
     parser.add_argument("--weight_decay", type=float, default=1e-6, help="Weight decay for optimizer")
 
+    parser.add_argument("--save_model_path", type=str, default="gnn.pt", help="File path where the trained model should be saved to")
+
     args = parser.parse_args()
     args.experiment_name = args.model
     return args
 
 
 def load_data(dataset_path):
-    graph_data, vocab_size, _ = load_dataset(dataset_path)
+    graph_data, vocab_size, vocab = load_dataset(dataset_path)
 
     graphs = [data['graph'] for data in graph_data]
     labels = [data['label'] for data in graph_data]
@@ -68,12 +71,13 @@ def load_data(dataset_path):
 
     train_dataset = CustomGraphDataset(train_graphs, len(label_encoder.classes_), training=True)
     test_dataset = CustomGraphDataset(test_graphs, len(label_encoder.classes_), training=False)
-    return train_dataset, test_dataset, vocab_size, label_encoder
+    return train_dataset, test_dataset, vocab_size, vocab, label_encoder
 
 
-def initialize_model(vocab_size, num_node_features, num_classes, num_steps_per_epoch, args, device):
+def initialize_model(vocab_size, vocab, num_node_features, num_classes, num_steps_per_epoch, args, device):
     model = GNNModel(vocab_size, args.embedding_dim, num_node_features, args.hidden_channels, args.num_layers, num_classes, args.dropout, 'relu',
-                     model_type=args.model, heads=args.heads, norm=args.norm).to(device)
+                     model_type=args.model, heads=args.heads, norm=args.norm, use_embedding=True, vocab=vocab,
+                     malware_threshold_prob=MALWARE_THRESHOLD_PROB).to(device)
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
     scheduler = OneCycleLR(optimizer, max_lr=args.max_lr, pct_start=0.3, steps_per_epoch=num_steps_per_epoch, epochs=args.epochs)
     criterion = torch.nn.CrossEntropyLoss()
@@ -115,7 +119,7 @@ def main():
     # Call the function to set random seeds right at the beginning of main
     set_random_seeds()
 
-    train_dataset, test_dataset, vocab_size, label_encoder = load_data(args.dataset_path)
+    train_dataset, test_dataset, vocab_size, vocab, label_encoder = load_data(args.dataset_path)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
@@ -124,7 +128,7 @@ def main():
     num_classes = len(label_encoder.classes_)
     num_steps_per_epoch = len(train_loader)
 
-    model, optimizer, scheduler, criterion = initialize_model(vocab_size, num_node_features, num_classes, num_steps_per_epoch, args, device)
+    model, optimizer, scheduler, criterion = initialize_model(vocab_size, vocab, num_node_features, num_classes, num_steps_per_epoch, args, device)
 
     experiment_tracker = ExperimentTracker(model, optimizer, scheduler, label_encoder, args)
 
@@ -137,7 +141,10 @@ def main():
         # Update the metrics tracker with the results from this epoch
         experiment_tracker.update_and_save(epoch, loss, train_preds, train_labels, test_preds, test_labels, current_lr)
         print(experiment_tracker)
-
+    
+    model.eval()
+    torch.save(model, args.save_model_path)
+    print(f"Model saved to {args.save_model_path}")
 
 if __name__ == "__main__":
     main()
