@@ -1,7 +1,7 @@
 import argparse
 import os
 import pickle
-
+from typing import List
 from preprocessing import GraphEncoder, SyscallFileReader
 
 
@@ -25,6 +25,17 @@ def process_subfolder(reader, encoder, subfolder_path, filter_calls, plot_graphs
 
     return subfolder_graph_data
 
+def find_trace_files_recursively(root_path: str) -> List[str]:
+    # Looks for all .txt files recursively in the given root_path(in order to solve the NFS dataset structure problem)
+    filepaths = []
+    if not os.path.isdir(root_path):
+        return filepaths
+    for dirpath, _, filenames in os.walk(root_path):
+        for filename in filenames:
+            # Only consider .txt files
+            if filename.endswith(".txt"):
+                filepaths.append(os.path.join(dirpath, filename))
+    return filepaths
 
 def preprocess_dataset(dataset_folder, filter_calls, plot_graphs, output_filename, vocab=None):
     all_graph_data = []
@@ -48,23 +59,42 @@ def preprocess_dataset(dataset_folder, filter_calls, plot_graphs, output_filenam
                     label = 'normal'
                     all_graph_data.extend(process_subfolder(reader, encoder, subfolder_path, filter_calls, plot_graphs, custom_label=label))
     else:
-        # Process dummy dataset structure
-        for subfolder_name in os.listdir(dataset_folder):
-            subfolder_path = os.path.join(dataset_folder, subfolder_name)
-            if os.path.isdir(subfolder_path):
-                all_graph_data.extend(process_subfolder(reader, encoder, subfolder_path, filter_calls, plot_graphs))
+       print(f"Processing generic dataset structure in {dataset_folder}...")
+       
+       # Assume generic structure with 'normal' and 'attack' subfolders, each containing trace files(for LID-DS,DONGTING)
+       normal_dir = os.path.join(dataset_folder, 'normal')
+       attack_dir = os.path.join(dataset_folder, 'attack')
+       
+       normal_files = find_trace_files_recursively(normal_dir)
+       attack_files = find_trace_files_recursively(attack_dir)
+       
+       # Process normal files
+       print(f"Processing {len(normal_files)} normal files...")
+       for file_path in normal_files:
+           syscalls = reader.read(file_path)
+           graph, node_mapping = encoder.encode(syscalls)
+           if plot_graphs:
+               encoder.plot_graph(file_path, filter_calls, graph, node_mapping)
+           all_graph_data.append({'graph': graph, 'label': 'normal'})
 
-    # Serialize all graph data to a single file at the specified location
+       # Process attack files
+       print(f"Processing {len(attack_files)} attack files...")
+       for file_path in attack_files:
+           syscalls = reader.read(file_path)
+           graph, node_mapping = encoder.encode(syscalls)
+           if plot_graphs:
+               encoder.plot_graph(file_path, filter_calls, graph, node_mapping)
+           all_graph_data.append({'graph': graph, 'label': 'attack'})
+
+    # Serialize the processed data to a pickle file
     output_file_path = os.path.join(dataset_folder, output_filename)
     with open(output_file_path, 'wb') as f:
-        # Create a dictionary to hold both the graph data and additional information
-        data_to_save = {
-            'graph_data': all_graph_data,
-            'vocab_size': len(encoder.syscall_vocab),
-            'vocab': encoder.syscall_vocab
-        }
-        pickle.dump(data_to_save, f)
-
+       data_to_save = {
+           'graph_data': all_graph_data,
+           'vocab_size': len(encoder.syscall_vocab),
+           'vocab': encoder.syscall_vocab
+       }
+       pickle.dump(data_to_save, f)
     return output_file_path
 
 
