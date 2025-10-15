@@ -1,7 +1,7 @@
 import argparse
-import os
 import numpy as np
 import torch
+from torch.package import PackageExporter
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from torch.optim.lr_scheduler import OneCycleLR
@@ -143,7 +143,15 @@ def main():
         print(experiment_tracker)
     
     model.eval()
-    torch.save(model, args.save_model_path)
+    with PackageExporter(args.save_model_path) as exporter:
+        exporter.intern("models.**")
+        exporter.intern("preprocessing.**")
+        exporter.extern("torch_geometric.**")
+        exporter.extern("matplotlib.**")
+        exporter.extern("networkx.**")
+        exporter.extern("numpy.**")
+        exporter.extern("_operator.**")
+        exporter.save_pickle("model", "model.pkl", model)
     print(f"Model saved to {args.save_model_path}")
 
 if __name__ == "__main__":
