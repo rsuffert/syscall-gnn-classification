@@ -82,7 +82,7 @@ class GraphEncoder:
                 print(f"Numpy Katz centrality computation failed for graph with nodes: {G.nodes()} and edges: {G.edges()}. Exception: {e}")
                 print("Falling back to iterative Katz centrality computation...")
                 try:
-                    katz_centrality = nx.katz_centrality(G,alpha=0.001 ,weight='weight', max_iter=5000)
+                    katz_centrality = nx.katz_centrality(G, alpha=0.001, weight='weight', max_iter=5000)
                 except Exception as e:
                     print(f"Iterative Katz centrality computation also failed. Exception: {e}")
                     print("Falling back to 0 for all nodes.")
