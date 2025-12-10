@@ -1,6 +1,7 @@
 import argparse
 
 import matplotlib.pyplot as plt
+import math
 import networkx as nx
 import numpy as np
 import torch
@@ -81,7 +82,7 @@ class GraphEncoder:
                 print(f"Numpy Katz centrality computation failed for graph with nodes: {G.nodes()} and edges: {G.edges()}. Exception: {e}")
                 print("Falling back to iterative Katz centrality computation...")
                 try:
-                    katz_centrality = nx.katz_centrality(G, weight='weight', max_iter=1000)
+                    katz_centrality = nx.katz_centrality(G, alpha=0.001, weight='weight', max_iter=5000)
                 except Exception as e:
                     print(f"Iterative Katz centrality computation also failed. Exception: {e}")
                     print("Falling back to 0 for all nodes.")
@@ -109,7 +110,8 @@ class GraphEncoder:
 
         x = torch.tensor(node_features, dtype=torch.float)
         edge_index = list(G.edges())
-        edge_features = [edge_counter[edge] for edge in edge_index]
+        # Log transformation for the syscalls weights (LID-DS's syscalls processing cause NaNs or invalid values)
+        edge_features = [math.log(edge_counter[edge] + 1) for edge in edge_index]
         edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
         edge_features = torch.tensor(edge_features, dtype=torch.float)
 
